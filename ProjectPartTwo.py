@@ -11,7 +11,7 @@ tweets = tweets.map(lambda tweet: (tweet[4], set([x.lower() for x in tweet[10].s
 test_tweet = tweets.take(5)[1][1]
 print(test_tweet)
 
-test_tweet = set(test_tweet)
+test_tweet = set(['great','job'])
 print('test tweet',test_tweet,'length ',len(test_tweet))
 print('\n')
 number_of_tweets = tweets.count()
@@ -22,7 +22,7 @@ tweets = tweets.flatMapValues(f)
 #Combine place name and word in order to create a new key which can be used for folding counts: (place,word,1) -> (place word,1)
 tweets = tweets.map(lambda entry:(entry[0]+' '+entry[1],1))
 #Fold values by key: (place word,1) (place word,1) -> (place word, 2) //With 2 beeing the count of occurences
-tweets = tweets.foldByKey(0,add)
+tweets = tweets.reduceByKey(lambda a,b:(a+b))
 def split_back(entry):
     count = entry[1]
     #Dark python magic which puts the last word in the array in the word variable, and the rest of the items in the array are put in the place variable
@@ -32,14 +32,13 @@ def split_back(entry):
 #Make place the only part of the key again: (place word,count) -> (place,word,count) 
 tweets = tweets.map(split_back)
 #We only want words which occurs in the tweet, so we filter out every (place,word,count) that are not relevant
-print(tweets.take(5))
 tweet_len = len(test_tweet)
 filter_tweets = tweets.map(lambda entry:(entry[0],1 if entry[1] in test_tweet else 0)).foldByKey(0,add)
 filter_tweets = filter_tweets.map(lambda entry:(entry[0],0 if entry[1]<tweet_len else 1))
 tweets = tweets.map(lambda entry:(entry[0],(entry[1],entry[2])))
 tweets = tweets.leftOuterJoin(filter_tweets).filter(lambda entry:(entry[1][1]!=0))
 tweets = tweets.map(lambda entry:(entry[0],entry[1][0][0],entry[1][0][1]))
-print(tweets.collect())
+
 
 
 
@@ -82,14 +81,6 @@ def calculate_probability(entry,tweet):
 
 
 def naive_bayes(tweets,tweet,number_of_tweets):
-    tweet_len = len(tweet)
-
-    filter_tweets = tweets.map(lambda entry:(entry[0],1 if entry[1] in tweet else 0)).foldByKey(0,add)
-    filter_tweets = filter_tweets.map(lambda entry:(entry[0],0 if entry[1]<tweet_len else 1))
-    tweets = tweets.map(lambda entry:(entry[0],(entry[1],entry[2],entry[3])))
-    tweets = tweets.leftOuterJoin(filter_tweets).filter(lambda entry:(entry[1][1]!=0))
-
-    tweets = tweets.map(lambda entry:(entry[0],entry[1][0][0],entry[1][0][1],entry[1][0][2]))
     #Form of tweets:  (place,word,count,count_total)
     tweet_factor_one = tweets.map(lambda entry:(entry[0],entry[3]/float(number_of_tweets))).distinct()
     probability_per_place = tweets.map(lambda entry:(calculate_probability(entry,tweet)))
@@ -108,7 +99,6 @@ tweets = tweets.map(lambda entry:(entry[0],(entry[1],entry[2])))
 tweets = tweets.leftOuterJoin(tweets_per_place)
 tweets = tweets.map(lambda entry:(entry[0],entry[1][0][0],entry[1][0][1],entry[1][1]))
 res  = naive_bayes(tweets,test_tweet,number_of_tweets)
-
 print(res.takeOrdered(5,key=lambda entry:(-entry[1])))
 
 
